@@ -1,0 +1,100 @@
+---
+title: "Yenching DS & Tech Survey Responses"
+output: html_notebook
+author: "Clara Wang"
+date: 2019-09-20
+---
+
+Set up the workspace.
+```{r}
+library(tidyverse)
+library(ggthemes)
+
+# set the working directory (where the data is located)
+setwd("~/Desktop/YCA/yca_ds/yca_dstech")
+
+```
+
+Read in the data.
+```{r}
+## import data
+df <- read.csv("deid_logistics.csv", stringsAsFactors = FALSE)
+
+```
+
+Clean up the data for plotting.
+```{r}
+# identify columns asking meeting times
+meeting_cols <- seq(1, ncol(df))[grepl("When.would.you.be.free", names(df))]
+
+# grab text
+meeting_times <- map_chr(.x = df[, meeting_cols],
+                         .f = function(x) {setdiff(unique(x), c(""))})
+
+# set names of meeting time columns to actual times
+names(df)[meeting_cols] <- meeting_times
+
+# recode data frame
+df_recode <- df %>%
+  dplyr::mutate_at(.vars = meeting_cols,
+                   .funs = function(x) {ifelse(x == "", 0, 1)})
+
+```
+
+What time is most popular for holding meetings? 
+```{r}
+meeting_plot <- df_recode[, meeting_times] %>%
+  gather(time, response) %>%
+  mutate("day" = factor(word(time, 1),
+                        levels = c("Tuesdays", "Thursdays", "Fridays",
+                                   "Saturdays", "Sundays")),
+         "start_time" = word(time, 2),
+         "end_time" = word(time, 4),
+         "time_range" = paste0(start_time, "-", end_time)) %>%
+  filter(response == 1) %>%
+  group_by(time) %>%
+  mutate(n_responses = sum(response)) %>%
+  ungroup() %>%
+  mutate(over_10 = ifelse(n_responses >= 10, "over", "under")) %>%
+  ggplot() +
+  geom_bar(aes(x = time_range, fill = over_10)) +
+  facet_grid(. ~ day, scales = "free_x", space = "free_x") +
+  scale_y_continuous(breaks = seq(0, 12, 3),
+                     labels = seq(0, 12, 3),
+                     name = "Number of Respondents") +
+  scale_fill_manual(values = c("over" = "darkgreen", "under" = "gray60"),
+                    name = "# Respondents",
+                    labels = c(">= 10", "<10")) +
+  theme_hc() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))  +
+  labs(x = "Time Range",
+       title = "Yenching DS & Tech Club Meeting Time Preferences",
+       subtitle = paste0("N = ", nrow(df)))
+meeting_plot
+
+```
+
+What are respondents' current experience levels with Python, R, and SQL?
+```{r}
+xperience_plot <- df_recode %>%
+  select(R, Python, SQL) %>%
+  gather(language, experience) %>%
+  group_by(language, experience) %>%
+  mutate(n = n()) %>%
+  ungroup() %>%
+  group_by(language) %>%
+  mutate(pct = n / sum(n)) %>%
+  ungroup() %>%
+  mutate(experience = factor(experience, 
+                             levels = c(
+                               "Advanced", "Intermediate", 
+                               "Some experience", "No experience"))) %>%
+  ggplot() +
+  geom_col(aes(x = language, y = pct, fill = experience), position = "stack") +
+  scale_y_continuous(labels = scales::percent_format(1)) +
+  scale_fill_discrete(name = "Experience\nLevel") +
+  theme_wsj() +
+  guides(fill = guide_legend(nrow = 2))
+xperience_plot
+```
+
