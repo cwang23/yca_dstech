@@ -1,1 +1,3 @@
-# yca_dstech
+# YCA & DS Tech Repository
+
+**A repository for code for the YCA DS & Tech Club**
